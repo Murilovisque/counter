@@ -2,8 +2,9 @@ package time
 
 import (
 	"log"
-	"projects/counter/repository"
 	"time"
+
+	"github.com/Murilovisque/counter/repository"
 
 	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
