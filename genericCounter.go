@@ -67,15 +67,13 @@ func startPersistence() {
 		for range ticker.C {
 			session, err := mgo.Dial("localhost")
 			if err != nil {
-
 				log.Println(err)
 				continue
 			}
 			session.SetMode(mgo.Monotonic, true)
 			for k := range persistenceQueue.mapDurationToPersist {
 				log.Printf("counter - Persisting key: %s", k)
-				count := &Counter{Key: k, Val: persistenceQueue.getAndClear(k)}
-				count.Persist(session)
+				persist(session, &Counter{Key: k, Val: persistenceQueue.getAndClear(k)})
 			}
 			session.Close()
 		}
@@ -83,18 +81,18 @@ func startPersistence() {
 }
 
 // Persist make the persistance
-func (p *Counter) Persist(session *mgo.Session) {
+func persist(session *mgo.Session, param *Counter) {
 	collection := session.DB(db).C(counterCollection)
-	c, err := incrementable.GetVal(collection, p.Key)
+	c, err := incrementable.GetVal(collection, param.Key)
 	if err == mgo.ErrNotFound {
-		c = &Counter{Key: p.Key, Val: p.Val}
+		c = &Counter{Key: param.Key, Val: param.Val}
 		err = collection.Insert(&c)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 	} else {
-		c.Val = incrementable.Inc(p.Val, c.Val)
+		c.Val = incrementable.Inc(param.Val, c.Val)
 		err = collection.Update(bson.M{"_id": c.ID}, bson.M{"$set": bson.M{valField: c.Val}})
 		if err != nil {
 			log.Println(err)
