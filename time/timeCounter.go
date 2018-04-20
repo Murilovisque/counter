@@ -8,17 +8,21 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
+const (
+	counterType = "time"
+)
+
 var (
 	zero time.Duration
 )
 
-func Init(dbParam string, persistIntervalParam int) {
-	counter.Init(dbParam, persistIntervalParam, timeCounter{})
+func Init() counter.Incrementable {
+	return timeCounter{}
 }
 
 //Inc duration of key
 func Inc(key string, val time.Duration) {
-	counter.Inc(key, val)
+	counter.Inc(counterType, key, val)
 }
 
 type timeCounter struct {
@@ -43,4 +47,8 @@ func (c timeCounter) GetVal(collection *mgo.Collection, key string) (*counter.Co
 		return nil, err
 	}
 	return &counter.Counter{ID: c.ID, Key: c.Key, Val: c.Val}, nil
+}
+
+func (c timeCounter) GetType() string {
+	return counterType
 }

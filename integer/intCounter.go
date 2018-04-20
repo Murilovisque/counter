@@ -1,39 +1,54 @@
 package integer
 
 import (
-	"sync"
+	"time"
+
+	"github.com/Murilovisque/counter"
+	mgo "gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 const (
-	counterCollection = "counters"
-	keyField          = "key"
-	durationField     = "duration"
+	counterType = "integer"
 )
 
 var (
-	db               = ""
-	persistInterval  = 10
-	persistenceQueue persistanceModel
+	zero int
 )
 
-//Inc int of key
-func Inc(key string, inc int) {
-	persistenceQueue.inc(key, inc)
+func Init() counter.Incrementable {
+	return integerCounter{}
 }
 
-type persistanceModel struct {
-	mapDurationToPersist map[string]int
-	mux                  sync.Mutex
+//Inc duration of key
+func Inc(key string, val time.Duration) {
+	counter.Inc(counterType, key, val)
 }
 
-func (p *persistanceModel) inc(key string, inc int) {
-	p.mux.Lock()
-	val, ok := p.mapDurationToPersist[key]
-	if ok {
-		val += inc
-		p.mapDurationToPersist[key] = val
-	} else {
-		p.mapDurationToPersist[key] = inc
+type integerCounter struct {
+	ID  bson.ObjectId `bson:"_id,omitempty"`
+	Key string
+	Val int
+}
+
+func (c integerCounter) Inc(actual interface{}, add interface{}) interface{} {
+	vl1 := actual.(int)
+	vl2 := add.(int)
+	return vl1 + vl2
+}
+
+func (c integerCounter) GetZeroVal() interface{} {
+	return zero
+}
+
+func (c integerCounter) GetVal(collection *mgo.Collection, key string) (*counter.Counter, error) {
+	err := collection.Find(bson.M{counter.KeyField: key}).One(&c)
+	if err != nil {
+		return nil, err
 	}
-	p.mux.Unlock()
+	return &counter.Counter{ID: c.ID, Key: c.Key, Val: c.Val}, nil
+}
+
+func (c integerCounter) GetType() string {
+	return counterType
 }
