@@ -16,19 +16,14 @@ var (
 	zero time.Duration
 )
 
-func Init() counter.Incrementable {
-	return timeCounter{}
+// Enable time counter
+func Enable() {
+	counter.AddIncrementor(timeCounter{})
 }
 
 //Inc duration of key
 func Inc(key string, val time.Duration) {
 	counter.Inc(counterType, key, val)
-}
-
-type timeCounter struct {
-	ID  bson.ObjectId `bson:"_id,omitempty"`
-	Key string
-	Val time.Duration
 }
 
 func (c timeCounter) Inc(actual interface{}, add interface{}) interface{} {
@@ -37,18 +32,24 @@ func (c timeCounter) Inc(actual interface{}, add interface{}) interface{} {
 	return vl1 + vl2
 }
 
-func (c timeCounter) GetZeroVal() interface{} {
+func (c timeCounter) ZeroVal() interface{} {
 	return zero
 }
 
-func (c timeCounter) GetVal(collection *mgo.Collection, key string) (*counter.Counter, error) {
+func (c timeCounter) Val(collection *mgo.Collection, key string) (*counter.Counter, error) {
 	err := collection.Find(bson.M{counter.KeyField: key}).One(&c)
 	if err != nil {
 		return nil, err
 	}
-	return &counter.Counter{ID: c.ID, Key: c.Key, Val: c.Val}, nil
+	return &counter.Counter{ID: c.ID, Key: c.K, Val: c.V}, nil
 }
 
-func (c timeCounter) GetType() string {
+func (c timeCounter) Type() string {
 	return counterType
+}
+
+type timeCounter struct {
+	ID bson.ObjectId `bson:"_id,omitempty"`
+	K  string
+	V  time.Duration
 }

@@ -1,8 +1,6 @@
 package integer
 
 import (
-	"time"
-
 	"github.com/Murilovisque/counter"
 	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -16,19 +14,20 @@ var (
 	zero int
 )
 
-func Init() counter.Incrementable {
-	return integerCounter{}
+// Enable int counter
+func Enable() counter.Incrementor {
+	counter.AddIncrementor(integerCounter{})
 }
 
 //Inc duration of key
-func Inc(key string, val time.Duration) {
+func Inc(key string, val int) {
 	counter.Inc(counterType, key, val)
 }
 
 type integerCounter struct {
-	ID  bson.ObjectId `bson:"_id,omitempty"`
-	Key string
-	Val int
+	ID bson.ObjectId `bson:"_id,omitempty"`
+	K  string
+	V  int
 }
 
 func (c integerCounter) Inc(actual interface{}, add interface{}) interface{} {
@@ -37,18 +36,18 @@ func (c integerCounter) Inc(actual interface{}, add interface{}) interface{} {
 	return vl1 + vl2
 }
 
-func (c integerCounter) GetZeroVal() interface{} {
+func (c integerCounter) ZeroVal() interface{} {
 	return zero
 }
 
-func (c integerCounter) GetVal(collection *mgo.Collection, key string) (*counter.Counter, error) {
+func (c integerCounter) Val(collection *mgo.Collection, key string) (*counter.Counter, error) {
 	err := collection.Find(bson.M{counter.KeyField: key}).One(&c)
 	if err != nil {
 		return nil, err
 	}
-	return &counter.Counter{ID: c.ID, Key: c.Key, Val: c.Val}, nil
+	return &counter.Counter{ID: c.ID, Key: c.K, Val: c.V}, nil
 }
 
-func (c integerCounter) GetType() string {
+func (c integerCounter) Type() string {
 	return counterType
 }

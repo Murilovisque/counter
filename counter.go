@@ -8,6 +8,7 @@ import (
 	"gopkg.in/mgo.v2/bson"
 
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -19,24 +20,31 @@ const (
 var (
 	db                     string
 	persistInterval        int
-	persistenceCountersMap map[string]*persistanceModel
+	persistenceCountersMap map[string]*persistanceCounter
 	stop                   = false
 	mutex                  sync.Mutex
+	goroutineCounter       uint64
 )
 
-// Init inform the dbname and internal to persist
-func Init(dbParam string, persistIntervalParam int, incrementables ...Incrementable) {
+// Start inform the dbname and internal to persist
+func Start(dbParam string, persistIntervalParam int) {
 	db = dbParam
 	persistInterval = persistIntervalParam
-	persistenceCountersMap = make(map[string]*persistanceModel)
-	for _, i := range incrementables {
-		persistenceCountersMap[i.GetType()] = &persistanceModel{incrementable: i, mapDurationToPersist: make(map[string]interface{})}
-	}
 	startPersistence()
+}
+
+// AddIncrementor to persist counts
+func AddIncrementor(i Incrementor) {
+	if persistenceCountersMap == nil {
+		persistenceCountersMap = make(map[string]*persistanceCounter)
+	}
+	persistenceCountersMap[i.Type()] = &persistanceCounter{incrementable: i, mapDurationToPersist: make(map[string]interface{})}
 }
 
 //Inc duration of key
 func Inc(typeCounter, key string, val interface{}) {
+	atomic.AddUint64(&goroutineCounter, 1)
+	defer atomic.AddUint64(&goroutineCounter, -1)
 	p, _ := persistenceCountersMap[typeCounter]
 	p.inc(key, val)
 }
@@ -44,10 +52,15 @@ func Inc(typeCounter, key string, val interface{}) {
 //Stop persist all counters and then stop them
 func Stop() {
 	stop = true
+	for {
+		if goroutineCounter == 0 {
+			break
+		}
+	}
 	doPersistence()
 }
 
-func (p *persistanceModel) inc(key string, val interface{}) {
+func (p *persistanceCounter) inc(key string, val interface{}) {
 	p.mux.Lock()
 	v, ok := p.mapDurationToPersist[key]
 	if ok {
@@ -59,12 +72,12 @@ func (p *persistanceModel) inc(key string, val interface{}) {
 	p.mux.Unlock()
 }
 
-func (p *persistanceModel) getAndClear(key string) interface{} {
+func (p *persistanceCounter) getAndClear(key string) interface{} {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	val, v := p.mapDurationToPersist[key]
 	if !v {
-		return p.incrementable.GetZeroVal()
+		return p.incrementable.ZeroVal()
 	}
 	delete(p.mapDurationToPersist, key)
 	return val
@@ -98,16 +111,16 @@ func doPersistence() {
 		}
 		session.SetMode(mgo.Monotonic, true)
 		for k := range p.mapDurationToPersist {
-			log.Printf("counter type %s - Persisting key: %s", p.incrementable.GetType(), k)
+			log.Printf("counter type %s - Persisting key: %s", p.incrementable.Type(), k)
 			persist(session, &Counter{Key: k, Val: p.getAndClear(k)}, p.incrementable)
 		}
 	}
 }
 
 // Persist make the persistance
-func persist(session *mgo.Session, param *Counter, incrementable Incrementable) {
-	collection := session.DB(db).C(counterCollection + incrementable.GetType())
-	c, err := incrementable.GetVal(collection, param.Key)
+func persist(session *mgo.Session, param *Counter, incrementable Incrementor) {
+	collection := session.DB(db).C(counterCollection + incrementable.Type())
+	c, err := incrementable.Val(collection, param.Key)
 	if err == mgo.ErrNotFound {
 		c = &Counter{Key: param.Key, Val: param.Val}
 		err = collection.Insert(&c)
@@ -126,12 +139,12 @@ func persist(session *mgo.Session, param *Counter, incrementable Incrementable) 
 	log.Printf("counter - Persisted: key %s, Val %v\n", c.Key, c.Val)
 }
 
-// Incrementable has a incrementation definition
-type Incrementable interface {
+// Incrementor has a incrementation definition
+type Incrementor interface {
 	Inc(actual interface{}, add interface{}) interface{}
-	GetVal(collection *mgo.Collection, key string) (*Counter, error)
-	GetZeroVal() interface{}
-	GetType() string
+	Val(collection *mgo.Collection, key string) (*Counter, error)
+	ZeroVal() interface{}
+	Type() string
 }
 
 // Counter model
@@ -141,8 +154,8 @@ type Counter struct {
 	Val interface{}
 }
 
-type persistanceModel struct {
+type persistanceCounter struct {
 	mapDurationToPersist map[string]interface{}
 	mux                  sync.Mutex
-	incrementable        Incrementable
+	incrementable        Incrementor
 }

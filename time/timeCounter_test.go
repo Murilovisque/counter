@@ -9,9 +9,11 @@ import (
 )
 
 func TestInc(*testing.T) {
-	counter.Init("counter-test-db", 10, ctime.Init())
+	ctime.Enable()
+	counter.Start("counter-test-db", 10)
 	ctime.Inc("k1", time.Duration(5))
 	ctime.Inc("k1", time.Duration(3))
 	ctime.Inc("k1", time.Duration(13))
 	counter.Stop()
+	//implement get
 }
