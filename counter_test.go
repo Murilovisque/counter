@@ -22,7 +22,7 @@ var (
 )
 
 func TestIncAndGetAndStop(t *testing.T) {
-	dropCollection()
+	dropDataBase(dbTest)
 	sumTime := sumQtdeTimeToTest()
 	sumInt := sumQtdeIntToTest()
 	ctime.Enable()
@@ -71,7 +71,7 @@ func TestIncAndGetAndStop(t *testing.T) {
 }
 
 func TestIncAndClear(t *testing.T) {
-	dropCollection()
+	dropDataBase(dbTest)
 	ctime.Enable()
 	cint.Enable()
 	counter.Start(dbTest, 10)
@@ -106,7 +106,7 @@ func TestIncAndClear(t *testing.T) {
 }
 
 func TestRestartShouldClearAll(t *testing.T) {
-	dropCollection()
+	dropDataBase(dbTest, "other-db-test")
 	ctime.Enable()
 	cint.Enable()
 	counter.Start(dbTest, 10)
@@ -147,13 +147,14 @@ func sumQtdeIntToTest() int {
 	return sum
 }
 
-func dropCollection() {
+func dropDataBase(dbs ...string) {
 	session, err := mgo.Dial("localhost")
 	if err != nil {
 		panic(err)
 	}
 	defer session.Close()
 	session.SetMode(mgo.Monotonic, true)
-	session.DB(dbTest).C("counterstime").DropCollection()
-	session.DB(dbTest).C("countersinteger").DropCollection()
+	for _, db := range dbs {
+		session.DB(db).DropDatabase()
+	}
 }
