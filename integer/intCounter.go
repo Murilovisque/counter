@@ -15,7 +15,7 @@ var (
 )
 
 // Enable int counter
-func Enable() counter.Incrementor {
+func Enable() {
 	counter.AddIncrementor(integerCounter{})
 }
 
@@ -24,10 +24,14 @@ func Inc(key string, val int) {
 	counter.Inc(counterType, key, val)
 }
 
-type integerCounter struct {
-	ID bson.ObjectId `bson:"_id,omitempty"`
-	K  string
-	V  int
+//Val the current counter value as int
+func Val(key string) int {
+	return counter.Val(counterType, key).(int)
+}
+
+//Clear counts
+func Clear(key string) {
+	counter.Clear(counterType, key)
 }
 
 func (c integerCounter) Inc(actual interface{}, add interface{}) interface{} {
@@ -40,14 +44,20 @@ func (c integerCounter) ZeroVal() interface{} {
 	return zero
 }
 
-func (c integerCounter) Val(collection *mgo.Collection, key string) (*counter.Counter, error) {
+func (c integerCounter) Counter(collection *mgo.Collection, key string) (*counter.Counter, error) {
 	err := collection.Find(bson.M{counter.KeyField: key}).One(&c)
 	if err != nil {
 		return nil, err
 	}
-	return &counter.Counter{ID: c.ID, Key: c.K, Val: c.V}, nil
+	return &counter.Counter{ID: c.ID, Key: c.Key, Val: c.Val}, nil
 }
 
 func (c integerCounter) Type() string {
 	return counterType
+}
+
+type integerCounter struct {
+	ID  bson.ObjectId `bson:"_id,omitempty"`
+	Key string
+	Val int
 }

@@ -26,6 +26,16 @@ func Inc(key string, val time.Duration) {
 	counter.Inc(counterType, key, val)
 }
 
+//Val the current counter value as time.Duration
+func Val(key string) time.Duration {
+	return counter.Val(counterType, key).(time.Duration)
+}
+
+//Clear counts
+func Clear(key string) {
+	counter.Clear(counterType, key)
+}
+
 func (c timeCounter) Inc(actual interface{}, add interface{}) interface{} {
 	vl1 := actual.(time.Duration)
 	vl2 := add.(time.Duration)
@@ -36,12 +46,12 @@ func (c timeCounter) ZeroVal() interface{} {
 	return zero
 }
 
-func (c timeCounter) Val(collection *mgo.Collection, key string) (*counter.Counter, error) {
+func (c timeCounter) Counter(collection *mgo.Collection, key string) (*counter.Counter, error) {
 	err := collection.Find(bson.M{counter.KeyField: key}).One(&c)
 	if err != nil {
 		return nil, err
 	}
-	return &counter.Counter{ID: c.ID, Key: c.K, Val: c.V}, nil
+	return &counter.Counter{ID: c.ID, Key: c.Key, Val: c.Val}, nil
 }
 
 func (c timeCounter) Type() string {
@@ -49,7 +59,7 @@ func (c timeCounter) Type() string {
 }
 
 type timeCounter struct {
-	ID bson.ObjectId `bson:"_id,omitempty"`
-	K  string
-	V  time.Duration
+	ID  bson.ObjectId `bson:"_id,omitempty"`
+	Key string
+	Val time.Duration
 }
