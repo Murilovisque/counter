@@ -21,6 +21,30 @@ var (
 	zeroIntTest      int
 )
 
+func TestValNotStopped(t *testing.T) {
+	dropDataBase(dbTest)
+	sumTime := sumQtdeTimeToTest()
+	sumInt := sumQtdeIntToTest()
+	ctime.Enable()
+	cint.Enable()
+	counter.Start(dbTest, 10)
+	for i := 0; i < qtdeTest; i++ {
+		ctime.Inc("k1", time.Duration(i))
+		ctime.Inc("k2", time.Duration(i))
+		ctime.Inc("k3", time.Duration(i))
+		cint.Inc("k1", i)
+		cint.Inc("k2", i)
+		cint.Inc("k3", i)
+	}
+	time.Sleep(90 * time.Millisecond) // Waiting to increment all values
+	if sumTime != ctime.Val("k1") || sumTime != ctime.Val("k2") || sumTime != ctime.Val("k3") ||
+		sumInt != cint.Val("k1") || sumInt != cint.Val("k2") || sumInt != cint.Val("k3") {
+		t.FailNow()
+	}
+	log.Println(t.Name(), "1 ok. Should return correct values")
+	counter.Stop()
+}
+
 func TestIncAndGetAndStop(t *testing.T) {
 	dropDataBase(dbTest)
 	sumTime := sumQtdeTimeToTest()
@@ -56,7 +80,7 @@ func TestIncAndGetAndStop(t *testing.T) {
 	}
 	ctime.Inc("k2", sumTime)
 	cint.Inc("k2", sumInt)
-	time.Sleep(1 * time.Second) // Waiting to increment all values
+	time.Sleep(90 * time.Millisecond) // Waiting to increment all values
 	if sumTime*2 != ctime.Val("k1") || sumTime*2 != ctime.Val("k2") || sumInt*2 != cint.Val("k1") || sumInt*2 != cint.Val("k2") {
 		t.FailNow()
 	}

@@ -83,7 +83,7 @@ func Val(typeCounter, key string) interface{} {
 	}
 	valPersist, ok := p.mapValuesToPersist[key]
 	if !ok {
-		valPersist = p.incrementable.ZeroVal()
+		return valCur
 	}
 	return p.incrementable.Inc(valCur, valPersist)
 }
