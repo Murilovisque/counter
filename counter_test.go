@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	qtdeTest = 30
+	qtdeTest = 10000
 	dbTest   = "counter-test-db"
 )
 
@@ -148,7 +148,7 @@ func TestIncAndValAndClearAndRestart(t *testing.T) {
 	counter.Stop()
 }
 
-func TestRestartShouldClearAll(t *testing.T) {
+func TestStopAndClearAll(t *testing.T) {
 	dropDataBase(dbTest, "other-db-test")
 	ctime.Enable()
 	cint.Enable()
@@ -160,14 +160,28 @@ func TestRestartShouldClearAll(t *testing.T) {
 	if sumQtdeTimeToTest() != ctime.Val("k1") || sumQtdeIntToTest() != cint.Val("k1") {
 		t.FailNow()
 	}
-	log.Println(t.Name(), "1 ok. Increment and stop should works")
+}
 
+func TestRestartWithOtherDb(t *testing.T) {
+	dropDataBase(dbTest, "other-db-test")
+	ctime.Enable()
+	cint.Enable()
+	counter.Start(dbTest, 10)
+	counter.Stop()
 	counter.Start("other-db-test", 10)
 	if ctime.Val("k1") != zeroDurationTest || cint.Val("k1") != zeroIntTest {
 		t.FailNow()
 	}
-	log.Println(t.Name(), "2 ok. Increment and restart with other db should clear the values")
 
+}
+
+func TestRestartWithOtherDbAndIncAndStop(t *testing.T) {
+	dropDataBase(dbTest, "other-db-test")
+	ctime.Enable()
+	cint.Enable()
+	counter.Start(dbTest, 10)
+	counter.Stop()
+	counter.Start("other-db-test", 10)
 	ctime.Inc("k1", sumQtdeTimeToTest())
 	cint.Inc("k1", sumQtdeIntToTest())
 	counter.Stop()
