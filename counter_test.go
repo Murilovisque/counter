@@ -1,4 +1,4 @@
-package counter
+package counter_test
 
 import (
 	"log"
@@ -6,189 +6,92 @@ import (
 	"time"
 
 	"github.com/Murilovisque/counter"
-	cint "github.com/Murilovisque/counter/integer"
-	ctime "github.com/Murilovisque/counter/time"
-	mgo "gopkg.in/mgo.v2"
 )
 
 const (
-	qtdeTest = 10000
-	dbTest   = "counter-test-db"
+	qtdeSimpleTest = 10000
 )
 
-var (
-	zeroDurationTest time.Duration
-	zeroIntTest      int
-)
-
-func TestIncAndVal(t *testing.T) {
+func TestIncAndValShouldWorks(t *testing.T) {
+	c := counter.Counter{}
+	for i := 0; i < qtdeSimpleTest; i++ {
+		c.Inc("k1d", time.Duration(i))
+		c.Inc("k2d", time.Duration(i))
+		c.Inc("k3d", time.Duration(i))
+		c.Inc("k1i", i)
+		c.Inc("k2i", i)
+		c.Inc("k3i", i)
+	}
 	sumTime := sumQtdeTimeToTest()
 	sumInt := sumQtdeIntToTest()
-	startDefaultValues()
-	time.Sleep(80 * time.Millisecond) // Waiting to increment all values
-	if sumTime != ctime.Val("k1") || sumTime != ctime.Val("k2") || sumTime != ctime.Val("k3") ||
-		sumInt != cint.Val("k1") || sumInt != cint.Val("k2") || sumInt != cint.Val("k3") {
-		t.FailNow()
-	}
-	counter.Stop()
+	c.WaitForFinalizationOfIncrements()
+	passIfAreEqualsDuration(t, sumTime, &c, "k1d", "k2d", "k3d")
+	passIfAreEqualsInt(t, sumInt, &c, "k1i", "k2i", "k3i")
 }
 
-func TestIncAndValStop(t *testing.T) {
+func TestSimpleIncAndValAndClear(t *testing.T) {
+	c := counter.Counter{}
+	for i := 0; i < qtdeSimpleTest; i++ {
+		c.Inc("k1d", time.Duration(i))
+		c.Inc("k2d", time.Duration(i))
+		c.Inc("k1i", i)
+		c.Inc("k2i", i)
+	}
 	sumTime := sumQtdeTimeToTest()
 	sumInt := sumQtdeIntToTest()
-	startDefaultValues()
-	counter.Stop() // persist
-	if sumTime != ctime.Val("k1") || sumTime != ctime.Val("k2") || sumTime != ctime.Val("k3") ||
-		sumInt != cint.Val("k1") || sumInt != cint.Val("k2") || sumInt != cint.Val("k3") {
-		t.FailNow()
+	c.WaitForFinalizationOfIncrements()
+	passIfAreEqualsDuration(t, sumTime, &c, "k1d", "k2d")
+	passIfAreEqualsInt(t, sumInt, &c, "k1i", "k2i")
+	c.Clear("k1d")
+	c.Clear("k1i")
+	passIfAreEqualsDuration(t, sumTime, &c, "k2d")
+	passIfAreEqualsInt(t, sumInt, &c, "k2i")
+	passIfAreZero(t, &c, "k1d", "k1i")
+}
+
+func passIfAreZero(t *testing.T, c *counter.Counter, keys ...string) {
+	for _, k := range keys {
+		if _, ok := c.Val(k); ok {
+			log.Printf("Test %s failed, value of key '%s' should be zero\n", t.Name(), k)
+			t.FailNow()
+			break
+		}
 	}
 }
 
-func TestIncAndValAndRestart(t *testing.T) {
-	sumTime := sumQtdeTimeToTest()
-	sumInt := sumQtdeIntToTest()
-	startDefaultValues()
-	counter.Stop() // persist
-	counter.Start(dbTest, 10)
-	if sumTime != ctime.Val("k1") || sumTime != ctime.Val("k2") || sumTime != ctime.Val("k3") ||
-		sumInt != cint.Val("k1") || sumInt != cint.Val("k2") || sumInt != cint.Val("k3") {
-		t.FailNow()
+func passIfAreEqualsDuration(t *testing.T, assertVal time.Duration, c *counter.Counter, keys ...string) {
+	comp := func(a, b interface{}) bool {
+		v1, ok := a.(time.Duration)
+		if !ok {
+			return false
+		}
+		v2, ok := a.(time.Duration)
+		return ok && v1 == v2
 	}
+	passIfAreEquals(comp, t, assertVal, c, keys...)
 }
 
-func TestIncAndValAndRestartAndInc(t *testing.T) {
-	sumTime := sumQtdeTimeToTest()
-	sumInt := sumQtdeIntToTest()
-	startDefaultValues()
-	counter.Stop() // persist
-	counter.Start(dbTest, 10)
-	for i := 0; i < qtdeTest; i++ {
-		ctime.Inc("k1", time.Duration(i))
-		cint.Inc("k1", i)
+func passIfAreEqualsInt(t *testing.T, assertVal int, c *counter.Counter, keys ...string) {
+	comp := func(a, b interface{}) bool {
+		v1, ok := a.(int)
+		if !ok {
+			return false
+		}
+		v2, ok := a.(int)
+		return ok && v1 == v2
 	}
-	ctime.Inc("k2", sumTime)
-	cint.Inc("k2", sumInt)
-	time.Sleep(80 * time.Millisecond) // Waiting to increment all values
-	if sumTime*2 != ctime.Val("k1") || sumTime*2 != ctime.Val("k2") || sumInt*2 != cint.Val("k1") || sumInt*2 != cint.Val("k2") {
-		t.FailNow()
-	}
-	counter.Stop()
+	passIfAreEquals(comp, t, assertVal, c, keys...)
 }
 
-func TestIncAndValAndRestartAndIncAndStop(t *testing.T) {
-	sumTime := sumQtdeTimeToTest()
-	sumInt := sumQtdeIntToTest()
-	startDefaultValues()
-	counter.Stop() // persist
-	counter.Start(dbTest, 10)
-	for i := 0; i < qtdeTest; i++ {
-		ctime.Inc("k1", time.Duration(i))
-		cint.Inc("k1", i)
+func passIfAreEquals(comparator func(interface{}, interface{}) bool, t *testing.T, assertVal interface{}, c *counter.Counter, keys ...string) {
+	for _, k := range keys {
+		v, ok := c.Val(k)
+		if !ok || !comparator(v, assertVal) {
+			log.Printf("Test %s failed, value of key '%s' should be %v, but it is %v\n", t.Name(), k, assertVal, v)
+			t.FailNow()
+			break
+		}
 	}
-	ctime.Inc("k2", sumTime)
-	cint.Inc("k2", sumInt)
-	counter.Stop()
-	if sumTime*2 != ctime.Val("k1") || sumTime*2 != ctime.Val("k2") || sumTime != ctime.Val("k3") ||
-		sumInt*2 != cint.Val("k1") || sumInt*2 != cint.Val("k2") || sumInt != cint.Val("k3") {
-		t.FailNow()
-	}
-}
-
-func TestIncAndValAndClear(t *testing.T) {
-	dropDataBase(dbTest)
-	ctime.Enable()
-	cint.Enable()
-	counter.Start(dbTest, 10)
-
-	ctime.Inc("k1", sumQtdeTimeToTest())
-	cint.Inc("k1", sumQtdeIntToTest())
-	time.Sleep(60 * time.Millisecond)
-	ctime.Clear("k1")
-	cint.Clear("k1")
-	if cint.Val("k1") != zeroIntTest || ctime.Val("k1") != zeroDurationTest {
-		t.FailNow()
-	}
-	counter.Stop()
-}
-
-func TestIncAndValAndClearAndStop(t *testing.T) {
-	dropDataBase(dbTest)
-	ctime.Enable()
-	cint.Enable()
-	counter.Start(dbTest, 10)
-
-	ctime.Inc("k1", sumQtdeTimeToTest())
-	cint.Inc("k1", sumQtdeIntToTest())
-	time.Sleep(60 * time.Millisecond)
-	ctime.Clear("k1")
-	cint.Clear("k1")
-	counter.Stop()
-	if cint.Val("k1") != zeroIntTest || ctime.Val("k1") != zeroDurationTest {
-		t.FailNow()
-	}
-	counter.Stop()
-}
-
-func TestIncAndValAndClearAndRestart(t *testing.T) {
-	dropDataBase(dbTest)
-	ctime.Enable()
-	cint.Enable()
-	counter.Start(dbTest, 10)
-
-	ctime.Inc("k1", sumQtdeTimeToTest())
-	cint.Inc("k1", sumQtdeIntToTest())
-	time.Sleep(60 * time.Millisecond)
-	ctime.Clear("k1")
-	cint.Clear("k1")
-	counter.Stop()
-	counter.Start(dbTest, 10)
-	if cint.Val("k1") != zeroIntTest || ctime.Val("k1") != zeroDurationTest {
-		t.FailNow()
-	}
-	counter.Stop()
-}
-
-func TestStopAndClearAll(t *testing.T) {
-	dropDataBase(dbTest, "other-db-test")
-	ctime.Enable()
-	cint.Enable()
-	counter.Start(dbTest, 10)
-
-	ctime.Inc("k1", sumQtdeTimeToTest())
-	cint.Inc("k1", sumQtdeIntToTest())
-	counter.Stop()
-	if sumQtdeTimeToTest() != ctime.Val("k1") || sumQtdeIntToTest() != cint.Val("k1") {
-		t.FailNow()
-	}
-}
-
-func TestRestartWithOtherDb(t *testing.T) {
-	dropDataBase(dbTest, "other-db-test")
-	ctime.Enable()
-	cint.Enable()
-	counter.Start(dbTest, 10)
-	counter.Stop()
-	counter.Start("other-db-test", 10)
-	if ctime.Val("k1") != zeroDurationTest || cint.Val("k1") != zeroIntTest {
-		t.FailNow()
-	}
-
-}
-
-func TestRestartWithOtherDbAndIncAndStop(t *testing.T) {
-	dropDataBase(dbTest, "other-db-test")
-	ctime.Enable()
-	cint.Enable()
-	counter.Start(dbTest, 10)
-	counter.Stop()
-	counter.Start("other-db-test", 10)
-	ctime.Inc("k1", sumQtdeTimeToTest())
-	cint.Inc("k1", sumQtdeIntToTest())
-	counter.Stop()
-	if sumQtdeTimeToTest() != ctime.Val("k1") || sumQtdeIntToTest() != cint.Val("k1") {
-		t.FailNow()
-	}
-	log.Println(t.Name(), "3 ok. Increment and restart and stop with other db should clear the values")
 }
 
 func sumQtdeTimeToTest() time.Duration {
@@ -197,35 +100,8 @@ func sumQtdeTimeToTest() time.Duration {
 
 func sumQtdeIntToTest() int {
 	var sum int
-	for i := 0; i < qtdeTest; i++ {
+	for i := 0; i < qtdeSimpleTest; i++ {
 		sum += i
 	}
 	return sum
-}
-
-func startDefaultValues() {
-	dropDataBase(dbTest)
-	ctime.Enable()
-	cint.Enable()
-	counter.Start(dbTest, 10)
-	for i := 0; i < qtdeTest; i++ {
-		ctime.Inc("k1", time.Duration(i))
-		ctime.Inc("k2", time.Duration(i))
-		ctime.Inc("k3", time.Duration(i))
-		cint.Inc("k1", i)
-		cint.Inc("k2", i)
-		cint.Inc("k3", i)
-	}
-}
-
-func dropDataBase(dbs ...string) {
-	session, err := mgo.Dial("localhost")
-	if err != nil {
-		panic(err)
-	}
-	defer session.Close()
-	session.SetMode(mgo.Monotonic, true)
-	for _, db := range dbs {
-		session.DB(db).DropDatabase()
-	}
 }
