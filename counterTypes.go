@@ -29,7 +29,7 @@ func (d *DurationCounter) Val(key string) (time.Duration, bool) {
 	return zeroDurationVal, ok
 }
 
-func (sc *IntCounter) Range(f func(k string, v time.Duration) bool) {
+func (sc *DurationCounter) Range(f func(k string, v time.Duration) bool) {
 	sc.mapCounts.Range(func(k, v interface{}) bool {
 		return f(k.(string), v.(time.Duration))
 	})
