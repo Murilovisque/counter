@@ -1,11 +1,11 @@
 package counter_test
 
 import (
-	"log"
 	"testing"
 	"time"
 
 	"github.com/Murilovisque/counter"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -13,140 +13,127 @@ const (
 )
 
 func TestIncAndValShouldWorks(t *testing.T) {
-	c := counter.Counter{}
+	cd := counter.NewDurationCounter()
+	ci := counter.NewIntCounter()
 	for i := 0; i < qtdeSimpleTest; i++ {
-		c.Inc("k1d", time.Duration(i))
-		c.Inc("k2d", time.Duration(i))
-		c.Inc("k3d", time.Duration(i))
-		c.Inc("k1i", i)
-		c.Inc("k2i", i)
-		c.Inc("k3i", i)
+		cd.Inc("k1d", time.Duration(i))
+		cd.Inc("k2d", time.Duration(i))
+		cd.Inc("k3d", time.Duration(i))
+		ci.Inc("k1i", i)
+		ci.Inc("k2i", i)
+		ci.Inc("k3i", i)
 	}
 	sumTime := sumQtdeTimeToTest()
 	sumInt := sumQtdeIntToTest()
 
-	passIfAreEqualsDurationWhenUseVal(t, sumTime, &c, "k1d", "k2d", "k3d")
-	passIfAreEqualsIntWhenUseVal(t, sumInt, &c, "k1i", "k2i", "k3i")
+	passIfAreEqualsDurationWhenUseVal(t, sumTime, cd, "k1d", "k2d", "k3d")
+	passIfAreEqualsIntWhenUseVal(t, sumInt, ci, "k1i", "k2i", "k3i")
 }
 
 func TestIncAndValAndClear(t *testing.T) {
-	c := counter.Counter{}
+	cd := counter.NewDurationCounter()
+	ci := counter.NewIntCounter()
 	for i := 0; i < qtdeSimpleTest; i++ {
-		c.Inc("k1d", time.Duration(i))
-		c.Inc("k2d", time.Duration(i))
-		c.Inc("k1i", i)
-		c.Inc("k2i", i)
+		cd.Inc("k1d", time.Duration(i))
+		cd.Inc("k2d", time.Duration(i))
+		ci.Inc("k1i", i)
+		ci.Inc("k2i", i)
 	}
 	sumTime := sumQtdeTimeToTest()
 	sumInt := sumQtdeIntToTest()
 
-	passIfAreEqualsDurationWhenUseVal(t, sumTime, &c, "k1d", "k2d")
-	passIfAreEqualsIntWhenUseVal(t, sumInt, &c, "k1i", "k2i")
-	c.Clear("k1d")
-	c.Clear("k1i")
-	passIfAreEqualsDurationWhenUseVal(t, sumTime, &c, "k2d")
-	passIfAreEqualsIntWhenUseVal(t, sumInt, &c, "k2i")
-	passIfAreZero(t, &c, "k1d", "k1i")
+	passIfAreEqualsDurationWhenUseVal(t, sumTime, cd, "k1d", "k2d")
+	passIfAreEqualsIntWhenUseVal(t, sumInt, ci, "k1i", "k2i")
+	cd.Clear("k1d")
+	ci.Clear("k1i")
+	passIfAreEqualsDurationWhenUseVal(t, sumTime, cd, "k2d")
+	passIfAreEqualsIntWhenUseVal(t, sumInt, ci, "k2i")
+	passIfDurationAreZero(t, cd, "k1d")
+	passIfIntAreZero(t, ci, "k1i")
 }
 
 func TestIncAndValAndClearAndInc(t *testing.T) {
-	c := counter.Counter{}
+	cd := counter.NewDurationCounter()
+	ci := counter.NewIntCounter()
 	for i := 0; i < qtdeSimpleTest; i++ {
-		c.Inc("k1d", time.Duration(i))
-		c.Inc("k2d", time.Duration(i))
-		c.Inc("k1i", i)
-		c.Inc("k2i", i)
+		cd.Inc("k1d", time.Duration(i))
+		cd.Inc("k2d", time.Duration(i))
+		ci.Inc("k1i", i)
+		ci.Inc("k2i", i)
 	}
 	sumTime := sumQtdeTimeToTest()
 	sumInt := sumQtdeIntToTest()
 
-	passIfIntsAreEqualsWhenUseValAndClear(t, sumInt, &c, "k1i", "k2i")
-	passIfDurationsAreEqualsWhenUseValAndClear(t, sumTime, &c, "k1d", "k2d")
-	passIfAreZero(t, &c, "k1i", "k2i", "k1d", "k2d")
-	c.Inc("k1d", sumTime)
-	c.Inc("k1i", sumInt)
+	passIfIntsAreEqualsWhenUseValAndClear(t, sumInt, ci, "k1i", "k2i")
+	passIfDurationsAreEqualsWhenUseValAndClear(t, sumTime, cd, "k1d", "k2d")
+	passIfIntAreZero(t, ci, "k1i", "k2i", "k1d", "k2d")
+	passIfDurationAreZero(t, cd, "k1d", "k2d")
+	cd.Inc("k1d", sumTime)
+	ci.Inc("k1i", sumInt)
 
-	passIfAreEqualsIntWhenUseVal(t, sumInt, &c, "k1i")
-	passIfAreEqualsDurationWhenUseVal(t, sumTime, &c, "k1d")
-	passIfAreZero(t, &c, "k2i", "k2d")
+	passIfAreEqualsIntWhenUseVal(t, sumInt, ci, "k1i")
+	passIfAreEqualsDurationWhenUseVal(t, sumTime, cd, "k1d")
+	passIfDurationAreZero(t, cd, "k2d")
+	passIfIntAreZero(t, ci, "k2i")
 }
 
-func passIfIntsAreEqualsWhenUseValAndClear(t *testing.T, assertVal int, c *counter.Counter, keys ...string) {
+func passIfIntsAreEqualsWhenUseValAndClear(t *testing.T, assertVal int, c *counter.IntCounter, keys ...string) {
 	if t.Failed() {
 		return
 	}
 	for _, k := range keys {
 		val, ok := c.ValAndClear(k)
-		if castVal := val.(int); !ok || assertVal != castVal {
-			log.Printf("Test %s failed, value of key '%s' should be %v, but it is %v\n", t.Name(), k, assertVal, castVal)
-			t.FailNow()
-			break
-		}
+		assert.Falsef(t, !ok || assertVal != val, "Test %s failed, value of key '%s' should be %v, but it is %v - %v\n", t.Name(), k, assertVal, val, c)
 	}
 }
 
-func passIfDurationsAreEqualsWhenUseValAndClear(t *testing.T, assertVal time.Duration, c *counter.Counter, keys ...string) {
+func passIfDurationsAreEqualsWhenUseValAndClear(t *testing.T, assertVal time.Duration, c *counter.DurationCounter, keys ...string) {
 	if t.Failed() {
 		return
 	}
 	for _, k := range keys {
 		val, ok := c.ValAndClear(k)
-		if castVal := val.(time.Duration); !ok || assertVal != castVal {
-			log.Printf("Test %s failed, value of key '%s' should be %v, but it is %v - %v\n", t.Name(), k, assertVal, castVal, c)
-			t.FailNow()
-			break
-		}
+		assert.Falsef(t, !ok || assertVal != val, "Test %s failed, value of key '%s' should be %v, but it is %v - %v\n", t.Name(), k, assertVal, val, c)
 	}
 }
 
-func passIfAreZero(t *testing.T, c *counter.Counter, keys ...string) {
+func passIfDurationAreZero(t *testing.T, c *counter.DurationCounter, keys ...string) {
 	if t.Failed() {
 		return
 	}
 	for _, k := range keys {
-		if _, ok := c.Val(k); ok {
-			log.Printf("Test %s failed, value of key '%s' should be zero\n", t.Name(), k)
-			t.FailNow()
-			break
-		}
+		_, ok := c.Val(k)
+		assert.Falsef(t, ok, "Test %s failed, value of key '%s' should be zero\n", t.Name(), k)
 	}
 }
 
-func passIfAreEqualsDurationWhenUseVal(t *testing.T, assertVal time.Duration, c *counter.Counter, keys ...string) {
-	comp := func(a, b interface{}) bool {
-		v1, ok := a.(time.Duration)
-		if !ok {
-			return false
-		}
-		v2, ok := a.(time.Duration)
-		return ok && v1 == v2
+func passIfIntAreZero(t *testing.T, c *counter.IntCounter, keys ...string) {
+	if t.Failed() {
+		return
 	}
-	passIfAreEquals(comp, t, assertVal, c, keys...)
+	for _, k := range keys {
+		_, ok := c.Val(k)
+		assert.Falsef(t, ok, "Test %s failed, value of key '%s' should be zero\n", t.Name(), k)
+	}
 }
 
-func passIfAreEqualsIntWhenUseVal(t *testing.T, assertVal int, c *counter.Counter, keys ...string) {
-	comp := func(a, b interface{}) bool {
-		v1, ok := a.(int)
-		if !ok {
-			return false
-		}
-		v2, ok := a.(int)
-		return ok && v1 == v2
-	}
-	passIfAreEquals(comp, t, assertVal, c, keys...)
-}
-
-func passIfAreEquals(comparator func(interface{}, interface{}) bool, t *testing.T, assertVal interface{}, c *counter.Counter, keys ...string) {
+func passIfAreEqualsDurationWhenUseVal(t *testing.T, assertVal time.Duration, c *counter.DurationCounter, keys ...string) {
 	if t.Failed() {
 		return
 	}
 	for _, k := range keys {
 		v, ok := c.Val(k)
-		if !ok || !comparator(v, assertVal) {
-			log.Printf("Test %s failed, value of key '%s' should be %v, but it is %v\n", t.Name(), k, assertVal, v)
-			t.FailNow()
-			break
-		}
+		assert.Falsef(t, !ok || v != assertVal, "Test %s failed, value of key '%s' should be %v, but it is %v\n", t.Name(), k, assertVal, v)
+	}
+}
+
+func passIfAreEqualsIntWhenUseVal(t *testing.T, assertVal int, c *counter.IntCounter, keys ...string) {
+	if t.Failed() {
+		return
+	}
+	for _, k := range keys {
+		v, ok := c.Val(k)
+		assert.Falsef(t, !ok || v != assertVal, "Test %s failed, value of key '%s' should be %v, but it is %v\n", t.Name(), k, assertVal, v)
 	}
 }
 

@@ -5,43 +5,47 @@ import (
 	"sync"
 )
 
-type Counter struct {
+type counter struct {
 	mapCounts sync.Map
 	mutex     sync.Mutex
+	incrementor
 }
 
-func (sc *Counter) Inc(key string, val interface{}) {
-	counterType := RetrieveCounterType(val)
+type incrementor interface {
+	increment(vl1, vl2 interface{}) interface{}
+}
+
+func (sc *counter) Clear(key string) {
+	sc.mapCounts.Delete(key)
+}
+
+func (sc *counter) inc(key string, val interface{}) {
 	sc.mutex.Lock()
 	defer sc.mutex.Unlock()
 	valLoaded, found := sc.mapCounts.LoadOrStore(key, val)
 	if found {
-		sc.mapCounts.Store(key, counterType.Inc(valLoaded, val))
+		sc.mapCounts.Store(key, sc.increment(valLoaded, val))
 	}
 }
 
-func (sc *Counter) Val(key string) (interface{}, bool) {
+func (sc *counter) val(key string) (interface{}, bool) {
 	return sc.mapCounts.Load(key)
 }
 
-func (sc *Counter) Clear(key string) {
-	sc.mapCounts.Delete(key)
-}
-
-func (sc *Counter) ValAndClear(key string) (interface{}, bool) {
+func (sc *counter) valAndClear(key string) (interface{}, bool) {
 	sc.mutex.Lock()
 	defer sc.mutex.Unlock()
-	v, ok := sc.Val(key)
+	v, ok := sc.val(key)
 	if ok {
 		sc.Clear(key)
 	}
 	return v, ok
 }
 
-func (sc *Counter) Range(f func(k, v interface{}) bool) {
+func (sc *counter) rangeVals(f func(k, v interface{}) bool) {
 	sc.mapCounts.Range(f)
 }
 
-func (sc *Counter) String() string {
+func (sc *counter) String() string {
 	return fmt.Sprint(&sc.mapCounts)
 }
